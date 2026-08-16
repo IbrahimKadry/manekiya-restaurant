@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertReservation, InsertUser, reservations, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,27 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function createReservation(reservation: InsertReservation): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Reservations are temporarily unavailable.");
+  await db.insert(reservations).values(reservation);
+}
+
+export async function getActiveReservationsForDate(reservationDate: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Reservations are temporarily unavailable.");
+  return db
+    .select({ reservationTime: reservations.reservationTime, partySize: reservations.partySize })
+    .from(reservations)
+    .where(and(eq(reservations.reservationDate, reservationDate), eq(reservations.status, "confirmed")));
+}
+
+export async function cancelReservation(reservationCode: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Reservations are temporarily unavailable.");
+  const result = await db
+    .update(reservations)
+    .set({ status: "cancelled" })
+    .where(eq(reservations.reservationCode, reservationCode));
+  return result[0].affectedRows > 0;
+}
